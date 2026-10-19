@@ -79,23 +79,23 @@ export const ARTIFACT_TYPE_INSTRUCTIONS: Record<ArtifactType, string> = {
   [ArtifactType.TIMELINE]:
     "Produce a chronological timeline of events/developments described in the material, as a Markdown list ordered earliest to latest, each entry with a date/period if available and a one-line description.",
 
-  [ArtifactType.QUIZ]: "",
+  [ArtifactType.QUIZ]: "Produce multiple-choice questions testing understanding of the material, each with 2-5 answer options and the correct answer indicated.",
 
-  [ArtifactType.FLASHCARDS]: "",
+  [ArtifactType.FLASHCARDS]: "Produce the number of flashcards requested by the user, covering the most important concepts and terms. If the user does not specify a number, produce 10-20 flashcards.",
 
   [ArtifactType.NOTES]:
     "Produce concise, well-organized study notes as nested bullet points grouped under headings.",
 
-  [ArtifactType.MIND_MAP]: "",
+  [ArtifactType.MIND_MAP]: "Produce a hierarchical mind map of the material, root topic down to sub-topics, max 4 levels deep.",
 
-  [ArtifactType.TABLE]: "",
+  [ArtifactType.TABLE]: "Produce a structured table summarizing the key information from the material. Choose sensible columns for the content (e.g. concept/definition/example, or date/event/significance).",
 
   [ArtifactType.CUSTOM]:
     "Produce the document the user asked for, using your best judgement for structure and format based on their request.",
 };
 
 export const STRUCTURED_ARTIFACT_INSTRUCTIONS: Record<StructuredArtifactType, string> = {
-  [ArtifactType.FLASHCARDS]: `Produce 10-20 flashcards covering the most important concepts and terms.
+  [ArtifactType.FLASHCARDS]: `Produce the number of flashcards requested by the user, covering the most important concepts and terms. If the user does not specify a number, produce 10-20 flashcards.
 
 Respond with ONLY a JSON object matching this exact shape:
 {
@@ -111,7 +111,7 @@ Respond with ONLY a JSON object matching this exact shape:
 
 Each "id" must be a short unique string (e.g. "c1", "c2"). Keep "question" and "answer" as plain text — no Markdown formatting, no HTML.`,
 
-  [ArtifactType.QUIZ]: `Produce 8-12 multiple-choice questions testing understanding of the material.
+  [ArtifactType.QUIZ]: `Produce the number of multiple-choice questions requested by the user, testing understanding of the material. If the user does not specify a number, produce 8-12 questions.
 
 Respond with ONLY a JSON object matching this exact shape:
 {
@@ -199,6 +199,7 @@ ${ARTIFACT_TYPE_INSTRUCTIONS[type]}
 
 Rules:
 - Use ONLY the notebook context below — never invent facts not present in it.
+- If the user's request specifies a quantity, follow that quantity exactly for the requested artifact items, questions, cards, rows, or entries. Do not replace it with a default range.
 - Cite claims inline using bracketed numbers matching the numbered sources below, e.g. [1].
 - If the notebook context is too thin to fully satisfy the request, produce what you can from it and note the gap rather than fabricating the rest.
 - Output well-formatted Markdown.`;
@@ -225,6 +226,7 @@ ${STRUCTURED_ARTIFACT_INSTRUCTIONS[type]}
 
 Rules:
 - Use ONLY the notebook context below — never invent facts not present in it.
+- If the user's request specifies a quantity, follow that quantity exactly for the requested artifact items, questions, cards, rows, or entries. Do not replace it with a default range.
 - Respond with ONLY the JSON object described above.
 - Do NOT return Markdown.
 - Do NOT wrap the JSON in code fences.

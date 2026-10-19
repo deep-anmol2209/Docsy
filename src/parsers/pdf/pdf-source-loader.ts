@@ -1,7 +1,8 @@
-import PDFParser from 'pdf2json';
 import type { DocumentBlock } from '../../common-types/document-model';
 import type { ParseRequest } from '../parser-interface';
 import { extractPdfWithUnstructured, isUnstructuredAvailable } from './unstructured-pdf-extractor';
+import { extractPdfTextWithScribe } from './scribe-pdf-extractor';
+
 import { SupabaseStorageAdapter } from '../../storage/adapters/supabase.adapter';
 import type { UnstructuredExtractionResult } from './unstructured-pdf-extractor';
 
@@ -10,7 +11,7 @@ export interface PdfPageText {
   readonly text: string;
 }
 
-export type PdfExtractionMethod = 'unstructured' | 'pdf2json';
+export type PdfExtractionMethod = 'unstructured' | 'scribe';
 
 export interface PdfLoadResult {
   readonly extractionMethod: PdfExtractionMethod;
@@ -79,7 +80,7 @@ export async function loadPdfFromBuffer(
     };
 
   if (shouldSkipUnstructured(pageClassification)) {
-    return loadWithPdf2json(buffer);
+    return loadWithScribe(buffer);
   }
 
   if (unstructuredExtractor.isAvailable()) {
@@ -89,7 +90,7 @@ export async function loadPdfFromBuffer(
     }
   }
 
-  return loadWithPdf2json(buffer);
+  return loadWithScribe(buffer);
 }
 
 function shouldSkipUnstructured(pageClassification?: PdfPageClassification): boolean {
@@ -113,9 +114,8 @@ async function tryLoadWithUnstructured(
   }
 }
 
-function loadWithPdf2json(buffer: Buffer): Promise<PdfLoadResult> {
-  console.log("loadWithPdf2json");
-  return extractTextFromPdfBuffer(buffer).then((pages) => ({ extractionMethod: 'pdf2json', pages }));
+function loadWithScribe(buffer: Buffer): Promise<PdfLoadResult> {
+  return extractPdfTextWithScribe(buffer).then((pages) => ({ extractionMethod: 'scribe', pages }));
 }
 
 function determineFileName(request: ParseRequest): string {
@@ -189,124 +189,4 @@ function getCloudinaryUrlFromPublicId(publicId?: string): string | undefined {
 
   const id = publicId.includes('.') ? publicId : `${publicId}.pdf`;
   return `https://res.cloudinary.com/${encodeURIComponent(cloudName)}/raw/upload/${encodeURIComponent(id)}`;
-}
-
-function extractTextFromPdfBuffer(buffer: Buffer): Promise<PdfPageText[]> {
-  console.log("extracting text from pdfbuffer");
-  
-  return new Promise((resolve, reject) => {
-    const pdfParser = new PDFParser(null, true);
-
-    pdfParser.on('pdfParser_dataError', (errData: Error | { parserError?: unknown }) => {
-      const message =
-        errData instanceof Error
-          ? errData.message
-          : String(errData?.parserError ?? 'PDF parsing error');
-      reject(new Error(message));
-    });
-
-    pdfParser.on('pdfParser_dataReady', (pdfData: Pdf2JsonDocument) => {
-      try {
-        resolve(reconstructPages(pdfData));
-      } catch (err) {
-        reject(err instanceof Error ? err : new Error('Failed to reconstruct PDF text.'));
-      }
-    });
-
-    pdfParser.parseBuffer(buffer);
-  });
-}
-
-function reconstructPages(pdfData: Pdf2JsonDocument): PdfPageText[] {
-  const pages: PdfPageText[] = [];
-
-  if (!pdfData?.Pages) {
-    return pages;
-  }
-
-  pdfData.Pages.forEach((page, pageIndex) => {
-    const text = reconstructPageText(page);
-    if (text.length > 0) {
-      pages.push({ pageNumber: pageIndex + 1, text });
-    }
-  });
-console.log("pages: ", pages);
-
-  return pages;
-}
-
-function reconstructPageText(page: Pdf2JsonPage): string {
-  if (!page.Texts || page.Texts.length === 0) {
-    return '';
-  }
-
-  const sortedTexts = [...page.Texts].sort((a, b) =>
-    Math.abs(a.y - b.y) < 0.2 ? a.x - b.x : a.y - b.y,
-  );
-
-  let content = '';
-  let lastY: number | null = null;
-  let lastX: number | null = null;
-  let lastWidth = 0;
-
-  for (const item of sortedTexts) {
-    const text = (item.R ?? []).map((run) => safeDecodeURIComponent(run.T ?? '')).join('');
-    if (!text.trim()) {
-      continue;
-    }
-
-    if (lastY !== null) {
-      const deltaY = item.y - lastY;
-      if (deltaY > 0.3) {
-        content += deltaY > 0.8 ? '\n\n' : '\n';
-      } else if (lastX !== null) {
-        const expectedNextX = lastX + lastWidth;
-        const gap = item.x - expectedNextX;
-        if (gap > 0.35 || item.x - lastX > 0.8) {
-          content += ' ';
-        }
-      }
-    }
-
-    content += text;
-    lastY = item.y;
-    lastX = item.x;
-    lastWidth = item.w ?? text.length * 0.3;
-  }
-
-  return content.trim();
-}
-
-function safeDecodeURIComponent(value: string): string {
-  if (!value) {
-    return '';
-  }
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    try {
-      return decodeURIComponent(value.replace(/%(?![0-9A-Fa-f]{2})/g, '%25'));
-    } catch {
-      return value;
-    }
-  }
-}
-
-interface Pdf2JsonTextRun {
-  readonly T?: string;
-}
-
-interface Pdf2JsonTextItem {
-  readonly x: number;
-  readonly y: number;
-  readonly w?: number;
-  readonly R?: readonly Pdf2JsonTextRun[];
-}
-
-interface Pdf2JsonPage {
-  readonly Texts?: readonly Pdf2JsonTextItem[];
-}
-
-interface Pdf2JsonDocument {
-  readonly Pages?: readonly Pdf2JsonPage[];
 }

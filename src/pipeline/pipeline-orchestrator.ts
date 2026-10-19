@@ -17,10 +17,9 @@ import { prisma } from '../../lib/db';
 import { validationStage, ValidationStageName, ValidationStageState } from './stages/validation.stage';
 import { pdfClassifierStage, PdfClassifierStageName, PdfClassifierStageState } from './stages/pdf-classifier.stage';
 import { parsingStage, ParsingStageName, ParsingStageState } from './stages/parsing.stage';
-import { ocrStage, OcrStageName, OcrStageState } from './stages/ocr.stage';
+import { ocrStage, OcrStageName, OcrStageState, shouldRunOcr } from './stages/ocr.stage';
 import { normalizationStage, NormalizationStageName, NormalizationStageState } from './stages/normalization.stage';
 import { analysisStage, AnalysisStageName, AnalysisStageState } from './stages/analysis.stage';
-import { markdownConversionStage, MarkdownConversionStageName, MarkdownConversionStageState } from './stages/markdown-conversion.stage';
 import { strategySelectionStage, StrategySelectionStageName, StrategySelectionStageState } from './stages/strategy-selection.stage';
 import { chunkingStage, ChunkingStageName, ChunkingStageState } from './stages/chunking.stage';
 import { enrichmentStage, EnrichmentStageName, EnrichmentStageState } from './stages/enrichment.stage';
@@ -60,7 +59,6 @@ export function createPipelineStages(customStages?: PipelineStage[]): PipelineSt
     { stageName: OcrStageName, stageState: OcrStageState, execute: ocrStage },
     { stageName: NormalizationStageName, stageState: NormalizationStageState, execute: normalizationStage },
     { stageName: AnalysisStageName, stageState: AnalysisStageState, execute: analysisStage },
-    { stageName: MarkdownConversionStageName, stageState: MarkdownConversionStageState, execute: markdownConversionStage },
     { stageName: StrategySelectionStageName, stageState: StrategySelectionStageState, execute: strategySelectionStage },
     { stageName: ChunkingStageName, stageState: ChunkingStageState, execute: chunkingStage },
     { stageName: EnrichmentStageName, stageState: EnrichmentStageState, execute: enrichmentStage },
@@ -78,11 +76,17 @@ export async function runPipeline(initialContext: PipelineContext, customStages?
   let currentContext = initialContext;
 
   for (const stage of stages) {
+    if (stage.stageName === OcrStageName && !shouldRunOcr(currentContext)) {
+      console.log(`[PIPELINE STAGE SKIP] ⏩ Skipping '${stage.stageName}': source is not a PDF requiring OCR.`);
+      continue;
+    }
+
     console.log(`[PIPELINE STAGE START] ▶️ Executing '${stage.stageName}' (${stage.stageState})...`);
 
     const prismaStage = toPrismaJobState(stage.stageState);
 
     try {
+      console.log(`[WORKER DB SYNC STAGE] Updating job and source state to '${prismaStage}' for jobId: '${currentContext.jobId}', sourceId: '${currentContext.sourceId}'`);
       await prismaCompat.job.update({
         where: { id: currentContext.jobId },
         data: {
@@ -332,9 +336,6 @@ function logStageSummary(stage: PipelineStage, context: PipelineContext) {
       break;
     case 'AnalysisStage':
       console.log(`[STAGE RESULT: AnalysisStage] 📊 Document Analyzed. Type: '${context.analysisResult?.documentType}', Recommended Format: '${context.analysisResult?.recommendedIntermediateFormat || 'text'}'`);
-      break;
-    case 'MarkdownConversionStage':
-      console.log(`[STAGE RESULT: MarkdownConversionStage] 📝 Markdown Conversion: ${context.markdownContent ? 'Executed' : 'Skipped'}. Artifact: '${context.artifactLocations?.markdownArtifact || 'N/A'}'`);
       break;
     case 'StrategySelectionStage':
       console.log(`[STAGE RESULT: StrategySelectionStage] 🎯 Strategy Selected: '${context.selectedStrategy}'`);

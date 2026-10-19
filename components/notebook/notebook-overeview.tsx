@@ -163,6 +163,9 @@ export function NotebookOverview({ notebookId }: { notebookId: string }) {
     (s) => s.ingestionStatus !== "COMPLETED" && s.ingestionStatus !== "FAILED",
   ).length;
 
+  console.log("[SOURCE UI] [NotebookOverview] Ready filter -> Before sources:", sources.map(s => ({ id: s.id, status: s.ingestionStatus })), "After count:", readyCount);
+  console.log("[SOURCE UI] [NotebookOverview] Processing filter -> Before sources:", sources.map(s => ({ id: s.id, status: s.ingestionStatus })), "After count:", processingCount);
+
   return (
     <div className="space-y-8 px-6 py-6 md:px-10">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -184,21 +187,56 @@ export function NotebookOverview({ notebookId }: { notebookId: string }) {
           </Link>
         </div>
 
-        {sources.length === 0 && !sourcesLoading ? (
-          <EmptyState
-            icon={<FileStack />}
-            title="No sources yet"
-            description="Add a source to start building this notebook's knowledge base."
-          />
-        ) : (
-         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {sources.slice(0, 4).map((source) => (
-              <SourceCard key={source.id} source={source} onDelete={async(id)=>{deleteSource.mutateAsync(id)}} onRetry={async(id)=>{
-                retrySource.mutateAsync(id)
-              }} isDeleting={deleteSource.isPending} isRetrying={retrySource.isPending} />
-            ))}
-          </div>
-        )}
+        {(() => {
+          const isEmpty = sources.length === 0 && !sourcesLoading;
+          console.log("[SOURCE UI] [NotebookOverview] Conditional rendering check:", {
+            sourcesCount: sources.length,
+            sourcesLoading,
+            isEmpty,
+          });
+
+          if (isEmpty) {
+            console.log("[SOURCE UI] [NotebookOverview] Condition matched: Showing 'No sources yet' EmptyState");
+            return (
+              <EmptyState
+                icon={<FileStack />}
+                title="No sources yet"
+                description="Add a source to start building this notebook's knowledge base."
+              />
+            );
+          }
+
+          console.log("[SOURCE UI] [NotebookOverview] Immediately before rendering source list. Total sources count:", sources.length);
+          sources.forEach((s, idx) => {
+            console.log(`[SOURCE UI] [NotebookOverview] [${idx}] id: ${s.id} | title: ${s.title} | ingestionStatus: ${s.ingestionStatus}`);
+          });
+
+          const slicedSources = sources.slice(0, 4);
+          console.log("[SOURCE UI] [NotebookOverview] slice(0, 4) -> Before IDs:", sources.map(s => s.id), "After IDs:", slicedSources.map(s => s.id));
+
+          return (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {slicedSources.map((source) => {
+                const cardKey = source.id;
+                console.log(`[SOURCE UI] [NotebookOverview] Inside .map() -> id: ${source.id} | title: ${source.title} | key: ${cardKey}`);
+                return (
+                  <SourceCard
+                    key={cardKey}
+                    source={source}
+                    onDelete={async (id) => {
+                      deleteSource.mutateAsync(id);
+                    }}
+                    onRetry={async (id) => {
+                      retrySource.mutateAsync(id);
+                    }}
+                    isDeleting={deleteSource.isPending}
+                    isRetrying={retrySource.isPending}
+                  />
+                );
+              })}
+            </div>
+          );
+        })()}
       </section>
 
       <section className="space-y-4">

@@ -25,35 +25,70 @@ export function SourceManagement({ workspaceId }: { workspaceId: string }) {
         </Button>
       </div>
 
-      {isLoading && sources.length === 0 ? (
-        <SourceGridSkeleton />
-      ) : error ? (
-        <EmptyState icon={<FileStack />} title="Failed to load sources" description={error} />
-      ) : sources.length === 0 ? (
-        <EmptyState
-          icon={<FileStack />}
-          title="Add your first source"
-          description="Bring PDFs, websites, videos, and other supported sources into this notebook."
-          action={<Button onClick={() => setAddOpen(true)}>Add source</Button>}
-        />
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:grid-cols-3">
-          {sources.map((source) => (
-           <SourceCard
-  key={source.id}
-  source={source}
-  onDelete={async (sourceId) => {
-    await deleteSource.mutateAsync(sourceId);
-  }}
-  onRetry={async (sourceId) => {
-    await retrySource.mutateAsync(sourceId);
-  }}
-  isDeleting={deleteSource.isPending}
-  isRetrying={retrySource.isPending}
-/>
-          ))}
-        </div>
-      )}
+      {(() => {
+        const isShowingSkeleton = isLoading && sources.length === 0;
+        const isShowingError = !isShowingSkeleton && !!error;
+        const isShowingEmpty = !isShowingSkeleton && !isShowingError && sources.length === 0;
+        const isShowingList = !isShowingSkeleton && !isShowingError && !isShowingEmpty;
+
+        console.log("[SOURCE UI] [SourceManagement] Conditional rendering check:", {
+          sourcesCount: sources.length,
+          isLoading,
+          error,
+          isShowingSkeleton,
+          isShowingError,
+          isShowingEmpty,
+          isShowingList,
+        });
+
+        if (isShowingSkeleton) {
+          console.log("[SOURCE UI] [SourceManagement] Branch selected: SourceGridSkeleton (isLoading && sources.length === 0)");
+          return <SourceGridSkeleton />;
+        }
+        if (isShowingError) {
+          console.log("[SOURCE UI] [SourceManagement] Branch selected: Error EmptyState");
+          return <EmptyState icon={<FileStack />} title="Failed to load sources" description={error!} />;
+        }
+        if (isShowingEmpty) {
+          console.log("[SOURCE UI] [SourceManagement] Branch selected: 'Add your first source' EmptyState (sources.length === 0)");
+          return (
+            <EmptyState
+              icon={<FileStack />}
+              title="Add your first source"
+              description="Bring PDFs, websites, videos, and other supported sources into this notebook."
+              action={<Button onClick={() => setAddOpen(true)}>Add source</Button>}
+            />
+          );
+        }
+
+        console.log("[SOURCE UI] [SourceManagement] Immediately before rendering source list. Total count:", sources.length);
+        sources.forEach((s, idx) => {
+          console.log(`[SOURCE UI] [SourceManagement] [${idx}] id: ${s.id} | title: ${s.title} | ingestionStatus: ${s.ingestionStatus}`);
+        });
+
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:grid-cols-3">
+            {sources.map((source) => {
+              const cardKey = source.id;
+              console.log(`[SOURCE UI] [SourceManagement] Inside .map() -> id: ${source.id} | title: ${source.title} | key: ${cardKey}`);
+              return (
+                <SourceCard
+                  key={cardKey}
+                  source={source}
+                  onDelete={async (sourceId) => {
+                    await deleteSource.mutateAsync(sourceId);
+                  }}
+                  onRetry={async (sourceId) => {
+                    await retrySource.mutateAsync(sourceId);
+                  }}
+                  isDeleting={deleteSource.isPending}
+                  isRetrying={retrySource.isPending}
+                />
+              );
+            })}
+          </div>
+        );
+      })()}
 
       <AddSourceDialog workspaceId={workspaceId} open={addOpen} onOpenChange={setAddOpen} />
     </div>

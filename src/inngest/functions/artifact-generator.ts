@@ -63,6 +63,14 @@ export const artifactGenerateFunction = inngest.createFunction(
           type: artifact.type,
           title: artifact.title,
           generationPrompt: artifact.generationPrompt ?? artifact.title,
+          resolvedQuery:
+            asMetadataObject(artifact.metadata).resolvedQuery as string | undefined,
+          resolvedContent:
+            asMetadataObject(artifact.metadata).resolvedContent as string | undefined,
+          sourceIds:
+            Array.isArray(asMetadataObject(artifact.metadata).sourceIds)
+              ? (asMetadataObject(artifact.metadata).sourceIds as string[])
+              : undefined,
         }),
       );
 

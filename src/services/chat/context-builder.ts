@@ -24,7 +24,10 @@ import {
   USER_MEMORY_CONTEXT_PREFIX,
 } from "@/src/config/prompts";
 import type { RetrievedChunk } from "@/src/services/retrival/retrival-service";
-import { extractMessageText } from "@/src/utils/message-content";
+import {
+  extractMessageText,
+  isArtifactPlaceholderMessage,
+} from "@/src/utils/message-content";
 import { formatRetrievedChunk } from "@/src/services/retrival/format-chunk";
 
 export type ChatMessage = {
@@ -91,6 +94,7 @@ export function buildChatMessages(params: {
     if (message.role !== MessageRole.USER && message.role !== MessageRole.ASSISTANT) {
       continue;
     }
+    if (isArtifactPlaceholderMessage(message)) continue;
 
     const text = extractMessageText(message.content);
     if (!text) continue;

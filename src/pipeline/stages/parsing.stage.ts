@@ -12,7 +12,6 @@
 //  * - Chunk.
 //  */
 
-// import PDFParser from 'pdf2json';
 // import { JobState, KNOWN_SOURCE_TYPES } from '../../common-types/enums';
 // import type { CommonDocument } from '../../common-types/document-model';
 // import type { PipelineStage } from '../stage-interface';
@@ -175,11 +174,11 @@
 //               extractedBlocks = [...unstructuredResult.blocks];
 //               console.log(`[ParsingStage] 🌐 Successfully extracted ${extractedBlocks.length} blocks via Unstructured API for source '${sourceId}'`);
 //             } catch (unstructuredErr) {
-//               console.warn(`[ParsingStage] ⚠️ Unstructured API partitioning error for source '${sourceId}', falling back to pdf2json:`, unstructuredErr);
+//               console.warn(`[ParsingStage] ⚠️ Unstructured API partitioning error for source '${sourceId}', falling back to Scribe:`, unstructuredErr);
 //             }
 //           }
 
-//           // 2. Secondary Fallback Extraction: pdf2json
+//           // 2. Secondary Fallback Extraction: Scribe OCR
 //           if (!extractedBlocks || extractedBlocks.length === 0) {
 //             extractedPages = await extractTextFromPdfBuffer(buffer);
 //             pdfRawText = extractedPages.map((p) => p.text).join('\n\n--- PAGE BREAK ---\n\n');

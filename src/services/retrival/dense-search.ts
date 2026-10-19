@@ -21,6 +21,8 @@ export async function denseSearch(params: {
   sourceIds: string[];
   topK: number;
 }): Promise<DenseMatch[]> {
+  console.log("dense qyery: ", params.text);
+  console.log("dense sourceIds: ", params.sourceIds);
   const pinecone = getPineconeClient();
 
   if (!pinecone) {
@@ -41,7 +43,7 @@ export async function denseSearch(params: {
     includeMetadata: true,
     filter: { sourceId: { $in: params.sourceIds } },
   });
-
+console.log("dense result: ", result.matches?.map(m=> ({id: m.id, score: m.score, documentId: m.metadata?.documentId, content: m.metadata?.content === "string" ? m.metadata.content.slice(0, 100): m.metadata?.content})));
   return (result.matches ?? []).map((match) => ({
     vectorId: match.id,
     documentId: match.metadata?.documentId as string | undefined,

@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { MoreHorizontal, Pin, PinOff, Trash2, Loader2, XCircle, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 
@@ -43,14 +43,31 @@ export function ArtifactCard({
   onDelete: (id: string) => Promise<void>;
   onTogglePin: (id: string, isPinned: boolean) => Promise<Artifact>;
 }) {
+  const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const isGenerating = artifact.status === "GENERATING";
   const isFailed = artifact.status === "FAILED";
 
   const preview = artifact.description ?? artifact.content?.slice(0, 140) ?? null;
+  const artifactHref = `/notebooks/${workspaceId}/artifacts/${artifact.id}`;
+
+  const openArtifact = () => {
+    if (!isGenerating && !isFailed) {
+      router.push(artifactHref);
+    }
+  };
 
   const cardContent = (
     <Card
+      onClick={openArtifact}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          openArtifact();
+        }
+      }}
+      role={!isGenerating && !isFailed ? "link" : undefined}
+      tabIndex={!isGenerating && !isFailed ? 0 : undefined}
       className={cn(
         "group relative flex h-full flex-col p-5 transition-all duration-200",
         !isGenerating && !isFailed && "hover:-translate-y-0.5 hover:shadow-md",
@@ -76,6 +93,8 @@ export function ArtifactCard({
                   variant="ghost"
                   size="icon-sm"
                   className="relative z-10 opacity-0 transition-opacity group-hover:opacity-100 data-[popup-open]:opacity-100"
+                  onClick={(event) => event.stopPropagation()}
+                  onPointerDown={(event) => event.stopPropagation()}
                 />
               }
             >
@@ -159,13 +178,12 @@ export function ArtifactCard({
       {isGenerating || isFailed ? (
         cardContent
       ) : (
-        <Link href={`/notebooks/${workspaceId}/artifacts/${artifact.id}`} className="block h-full">
-          {cardContent}
-        </Link>
+        cardContent
       )}
 
       <ConfirmDialog
         open={confirmOpen}
+        
         onOpenChange={setConfirmOpen}
         title={`Delete "${artifact.title}"?`}
         description="This can't be undone."

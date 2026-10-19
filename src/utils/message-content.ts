@@ -13,3 +13,20 @@ export function extractMessageText(content: unknown): string {
 
   return "";
 }
+
+export function isArtifactPlaceholderMessage(message: {
+  content: unknown;
+  metadata: unknown;
+}): boolean {
+  if (extractMessageText(message.content).trim() !== "I've started creating your artifact.") {
+    return false;
+  }
+
+  const metadata = message.metadata;
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return false;
+  }
+
+  const artifacts = (metadata as { artifacts?: unknown }).artifacts;
+  return Array.isArray(artifacts) && artifacts.length > 0;
+}

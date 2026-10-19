@@ -96,6 +96,25 @@ export async function listSourcesForWorkspace(workspaceId: string, userId: strin
   });
 }
 
+export async function listSourceMetadataForWorkspace(
+  workspaceId: string,
+  userId?: string,
+) {
+  return prisma.source.findMany({
+    where: {
+      workspaceId,
+      ...(userId ? { workspace: { userId } } : {}),
+    },
+    select: {
+      id: true,
+      title: true,
+      type: true,
+      originalReference: true,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
 export async function getSourceForWorkspace(
   workspaceId: string,
   sourceId: string,
@@ -218,6 +237,7 @@ export const sourcesRepository = {
   createSource,
   getSourceById,
   listSourcesByWorkspace,
+  listSourceMetadataForWorkspace,
   getAllSources,
   updateSource,
   deleteSourceForWorkspace,

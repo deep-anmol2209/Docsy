@@ -8,7 +8,7 @@ import {
   sendMessageSchema,
 } from "@/src/validators/chat-validator";
 import { streamChatResponse } from "@/src/services/chat/chat-service";
-import { detectIntent, artifactTypeForIntent } from "@/src/services/chat/intent-service";
+import { artifactTypeForIntent, detectIntent } from "@/src/services/chat/intent-service";
 import { requestArtifactGeneration } from "@/src/services/artifact/artifact-service";
 import * as conversationService from "@/src/services/conversation/conversation-service";
 import * as messageRepository from "@/src/repositories/message-repository";
@@ -16,6 +16,7 @@ import { MessageRole } from "@/lib/generated/prisma/enums";
 import { CHAT_RATE_LIMIT, ARTIFACT_RATE_LIMIT } from "@/lib/ai-config";
 import { checkRateLimit } from "@/src/utils/rate-limiter";
 import { createMessage } from "@/src/repositories/message-repository";
+import { resolveArtifactContext } from "@/src/services/chat/artifact-context-resolver";
 export async function sendMessage(
   req: NextRequest,
   context: RouteContext<{ workspaceId: string; conversationId: string }> = {},
@@ -29,13 +30,17 @@ export async function sendMessage(
 
   checkRateLimit(`chat:${userId}`, CHAT_RATE_LIMIT);
 
+  await conversationService.getConversationForWorkspace(
+    workspaceId,
+    conversationId,
+    userId,
+  );
+
   const intent = detectIntent(message);
 
   if (intent !== "CHAT") {
-    console.log("intent: ",intent);
-    
+    console.log("intent: ", intent);
     return handleArtifactRequest({ workspaceId, conversationId, userId, message, intent });
-    // checkRateLimit(`artifact:${userId}`, ARTIFACT_RATE_LIMIT);
   }
 
   // Ownership + the user message are persisted synchronously inside
@@ -47,7 +52,6 @@ export async function sendMessage(
     conversationId,
     userId,
     message,
-   
   });
 
   return new Response(stream, {
@@ -83,6 +87,15 @@ async function handleArtifactRequest(params: {
     params.userId,
   );
 
+  const recentMessages = await messageRepository.getRecentMessages(
+    params.conversationId,
+    20,
+  );
+  const resolvedContext = resolveArtifactContext({
+    request: params.message,
+    recentMessages,
+  });
+
   // The request itself still belongs in conversation history, even though
   // the *response* is an artifact, not a chat message — see
   // "Do not store artifacts as Message.content" in the spec.
@@ -106,6 +119,7 @@ async function handleArtifactRequest(params: {
     type: artifactType,
     generationPrompt: params.message,
     conversationId: params.conversationId,
+    ...resolvedContext,
   });
 await createMessage({
 

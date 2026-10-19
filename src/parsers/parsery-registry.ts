@@ -19,7 +19,7 @@ import { WebpageParser } from './webpage/webpage.parser';
  * `Parser` this registry resolves — it never branches on source type.
  *
  * Registered parsers:
- *   pdf      → PdfParser      (downloads bytes from storageLocation, runs Unstructured/pdf2json)
+ *   pdf      → PdfParser      (downloads bytes from storageLocation, runs Unstructured/Scribe)
  *   youtube  → YoutubeParser  (fetches transcript from url)
  *   text     → TextParser     (reads inlineText or downloads plain-text from storageLocation)
  *   markdown → MarkdownParser (reads inlineText or downloads .md from storageLocation)

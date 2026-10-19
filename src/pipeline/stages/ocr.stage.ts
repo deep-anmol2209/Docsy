@@ -16,9 +16,38 @@ import type { CommonDocument, DocumentBlock } from '../../common-types/document-
 import type { PipelineStage } from '../stage-interface';
 import type { PipelineContext } from '../pipeline-context';
 import { SupabaseStorageAdapter } from '../../storage/adapters/supabase.adapter';
+import { buildOcrDocumentAnalysisPrompt } from '../../config/prompts';
 
 export const OcrStageName = 'OcrStage';
 export const OcrStageState = JobState.OCR;
+
+export function shouldRunOcr(context: PipelineContext): boolean {
+  const sourceType = context.sourceInput?.type || context.sourceRecord?.type || context.rawDocument?.sourceType;
+
+  if (sourceType !== KNOWN_SOURCE_TYPES.PDF || !context.rawDocument?.blocks?.length) {
+    return false;
+  }
+
+  const pdfClassification = context.processingMetadata?.pdfClassification;
+  if (Array.isArray(pdfClassification?.scannedImagePages)) {
+    return pdfClassification.scannedImagePages.length > 0;
+  }
+
+  const pageCharCounts = new Map<number, number>();
+  for (const block of context.rawDocument.blocks) {
+    const page = block.page || 1;
+    const content = block.content?.trim() || '';
+    const isPlaceholder = content.includes('[Scanned Image]') || content.includes('[Image]');
+
+    if (!content || isPlaceholder) {
+      return true;
+    }
+
+    pageCharCounts.set(page, (pageCharCounts.get(page) || 0) + content.length);
+  }
+
+  return Array.from(pageCharCounts.values()).some((count) => count < 20);
+}
 
 export async function ocrStage(context: PipelineContext): Promise<PipelineContext> {
   const storageAdapter = new SupabaseStorageAdapter();
@@ -28,10 +57,15 @@ export async function ocrStage(context: PipelineContext): Promise<PipelineContex
   //    never have scanned-image pages — skip OCR entirely for them.
   const sourceType = context.sourceInput?.type || context.sourceRecord?.type || rawDocument?.sourceType;
 
-  if (sourceType && sourceType !== KNOWN_SOURCE_TYPES.PDF) {
+  if (sourceType !== KNOWN_SOURCE_TYPES.PDF) {
     console.log(
       `[OCR STAGE] ⏩ Skipping OCR for source type "${sourceType}" (OCR only applies to PDF).`
     );
+    return context;
+  }
+
+  if (!shouldRunOcr(context)) {
+    console.log(`[OCR STAGE] ✅ OCR is not required for this PDF. Skipping OCR.`);
     return context;
   }
 
@@ -46,8 +80,9 @@ export async function ocrStage(context: PipelineContext): Promise<PipelineContex
   const emptyBlockIds = new Set<string>();
 
   rawDocument.blocks.forEach((block) => {
-    const isContentEmpty = !block.content || block.content.trim().length === 0;
-    const isPlaceholder = block.content.includes('[Scanned Image]') || block.content.includes('[Image]');
+    const content = block.content?.trim() || '';
+    const isContentEmpty = content.length === 0;
+    const isPlaceholder = content.includes('[Scanned Image]') || content.includes('[Image]');
 
     if (isContentEmpty || isPlaceholder) {
       if (block.page) {

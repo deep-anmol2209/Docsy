@@ -25,6 +25,7 @@ import { inngest, CONVERSATION_SUMMARIZE_EVENT } from "@/src/inngest/client";
 import * as conversationService from "@/src/services/conversation/conversation-service";
 import * as conversationRepository from "@/src/repositories/conversation-repository";
 import * as messageRepository from "@/src/repositories/message-repository";
+import { listSourceMetadataForWorkspace } from "@/src/repositories/source-repository";
 import {
   retrieveChunksForWorkspace,
   type RetrievedChunk,
@@ -39,9 +40,11 @@ import { logger } from "@/src/utils/logger";
 import {
   artifactTypeForIntent,
   ChatIntent,
-  isGeneralAssistantQuery,
+  QueryRoute,
+  routeQuery,
 } from "./intent-service";
 import { requestArtifactGeneration } from "../artifact/artifact-service";
+import { resolveArtifactContext } from "./artifact-context-resolver";
 
 function toCitations(chunks: RetrievedChunk[]): Prisma.InputJsonValue | undefined {
   if (chunks.length === 0) return undefined;
@@ -69,6 +72,7 @@ export async function streamChatResponse(params: {
   conversationId: string;
   userId: string;
   message: string;
+  queryRoute?: QueryRoute;
   artifactIntent?: ChatIntent;
 }): Promise<ReadableStream<Uint8Array>> {
   console.log("artifactIntent: ", params.artifactIntent);
@@ -95,30 +99,78 @@ const userMessage=  await messageRepository.createMessage({
     content: { text: params.message },
   });
 
-  const shouldSkipRetrieval = isGeneralAssistantQuery(params.message);
+  const notebookSources = await listSourceMetadataForWorkspace(
+    params.workspaceId,
+    params.userId,
+  ).catch((error) => {
+    logger.error("Failed to list notebook sources for query routing", error);
+    return [];
+  });
+
+  const queryRoute =
+    params.queryRoute ??
+    (await routeQuery({
+      message: params.message,
+      recentMessages,
+      notebookSources,
+    }));
+
+  console.log("\n========== CHAT ROUTE ==========");
+  console.log("Message:", params.message);
+  console.log("Query route:", queryRoute);
+
+  const resolvedContext = resolveArtifactContext({
+    request: params.message,
+    recentMessages,
+  });
+  const hasResolvedReference = Boolean(
+    resolvedContext.resolvedQuery || resolvedContext.resolvedContent,
+  );
+  const shouldRetrieve = queryRoute === "NOTEBOOK" || hasResolvedReference;
+  const retrievalQuery = resolvedContext.resolvedQuery ?? params.message;
+
+  console.log("Resolved context:", resolvedContext);
+  console.log("Should retrieve:", shouldRetrieve);
+  console.log("Retrieval query:", retrievalQuery);
+  console.log("================================\n");
 
   const [retrievedChunks, userMemories] = await Promise.all([
-    shouldSkipRetrieval
-      ? Promise.resolve([] as RetrievedChunk[])
-      : retrieveChunksForWorkspace(params.workspaceId, params.message).catch(
-          (error) => {
-            logger.error(
-              "Retrieval failed; continuing chat without notebook context",
-              error,
-            );
-            return [] as RetrievedChunk[];
-          },
-        ),
-    shouldSkipRetrieval
-      ? Promise.resolve([] as string[])
-      : searchUserMemories(params.userId, params.message).catch((error) => {
-          logger.error(
-            "User memory search failed; continuing without it",
-            error,
-          );
-          return [] as string[];
-        }),
+    shouldRetrieve
+      ? retrieveChunksForWorkspace(
+          params.workspaceId,
+          retrievalQuery,
+          undefined,
+          resolvedContext.sourceIds,
+        ).catch((error) => {
+          logger.error("Retrieval failed; continuing chat without notebook context", error);
+          return [] as RetrievedChunk[];
+        })
+      : Promise.resolve([] as RetrievedChunk[]),
+    searchUserMemories(params.userId, params.message).catch((error) => {
+      logger.error("User memory search failed; continuing without it", error);
+      return [] as string[];
+    }),
   ]);
+
+  console.log("\n========== RETRIEVAL RESULT ==========");
+  console.log("Message:", params.message);
+  console.log("Route:", queryRoute);
+  console.log("Should retrieve:", shouldRetrieve);
+  console.log("Retrieved chunks:", retrievedChunks.length);
+
+  console.log(
+    "Retrieved sources:",
+    retrievedChunks.map((chunk) => ({
+      sourceId: chunk.sourceId,
+      sourceTitle: chunk.sourceTitle,
+      page: chunk.page,
+      startTimeSeconds: chunk.startTimeSeconds,
+      endTimeSeconds: chunk.endTimeSeconds,
+      score: chunk.score,
+    }))
+  );
+
+  console.log("======================================\n");
 
   // Cap the notebook-context block itself (not just history) so
   // `CONTEXT_TOKEN_BUDGET` is a real ceiling, not just advisory — and use
@@ -139,6 +191,11 @@ const userMessage=  await messageRepository.createMessage({
 
   const model = resolveChatModel(conversation.model);
   const citations = toCitations(groundedChunks);
+
+  console.log("\n========== CITATIONS ==========");
+  console.log("Grounded chunks:", groundedChunks.length);
+  console.log("Citations:", citations);
+  console.log("===============================\n");
 
   const encoder = new TextEncoder();
   let fullText = "";

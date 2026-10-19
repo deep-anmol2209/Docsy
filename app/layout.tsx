@@ -43,19 +43,11 @@
 // }
 
 import type { Metadata } from "next";
-import { Geist_Mono, Figtree } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { ThemeProvider } from "@/lib/providers/theme-provider";
 import { Toaster } from "sonner";
 import {QueryProvider} from "@/lib/providers/query-client-provider";
-
-const figtree = Figtree({ subsets: ["latin"], variable: "--font-sans" });
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: {
@@ -69,7 +61,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={cn("h-full", "antialiased", geistMono.variable, "font-sans", figtree.variable)}
+      className={cn("h-full", "antialiased", "font-sans")}
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">

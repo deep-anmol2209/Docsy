@@ -34,7 +34,8 @@ async function getSessionUserId(): Promise<string> {
 
 export async function handlePdfSource(formData: FormData, userId?: string) {
   const ownerUserId = userId ?? (await getSessionUserId());
-
+     console.log("handling pdf");
+     
   const file = formData.get("file") as File;
   const notebookId = formData.get("notebookId") as string | null;
   const title = formData.get("title") as string | null;
@@ -50,7 +51,7 @@ export async function handlePdfSource(formData: FormData, userId?: string) {
   if (file.size > 20 * 1024 * 1024) {
     throw new Error("Maximum file size is 20 MB.");
   }
-
+  console.log('[Cloudinary Upload] 📤 Uploading PDF to Cloudinary...');
   const upload = await uploadPdfToCloudinary(file);
 
   console.log('[Cloudinary Upload Success]', upload.secure_url, upload.public_id);

@@ -36,12 +36,21 @@ export async function requestArtifactGeneration(params: {
   description?: string;
   /** Conversation this request originated from, if any — stored in `metadata` since `Artifact` has no direct conversation relation. */
   conversationId?: string;
+  resolvedQuery?: string;
+  resolvedContent?: string;
+  sourceIds?: string[];
 }) {
   const title = params.title?.trim() || defaultTitleForType(params.type, params.generationPrompt);
 
-  const metadata: Prisma.InputJsonValue | undefined = params.conversationId
-    ? { conversationId: params.conversationId }
-    : undefined;
+  const metadata: Prisma.InputJsonValue | undefined =
+    params.conversationId || params.resolvedQuery || params.resolvedContent || params.sourceIds
+      ? {
+          ...(params.conversationId ? { conversationId: params.conversationId } : {}),
+          ...(params.resolvedQuery ? { resolvedQuery: params.resolvedQuery } : {}),
+          ...(params.resolvedContent ? { resolvedContent: params.resolvedContent } : {}),
+          ...(params.sourceIds ? { sourceIds: params.sourceIds } : {}),
+        }
+      : undefined;
 
   const artifact = await artifactRepository.createArtifact(
     params.workspaceId,

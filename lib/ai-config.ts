@@ -119,6 +119,12 @@ export const RERANK_CANDIDATE_POOL = 8;
  */
 export const RERANK_ENABLED = true;
 
+/**
+ * Minimum relevance score (0-10) from the LLM reranker for a candidate chunk
+ * to be considered relevant to the query and included in grounded context.
+ */
+export const RERANK_RELEVANCE_THRESHOLD = 6;
+
 // --- User memory (Phase 6, Mem0 hosted platform) ---
 
 /** Max relevant memories injected into chat context per turn. */

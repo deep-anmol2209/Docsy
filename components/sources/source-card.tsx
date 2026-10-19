@@ -52,6 +52,8 @@ isRetrying
   const isFailed = source.ingestionStatus === "FAILED";
   const externalUrl = source.url ?? (source.type === "PDF" ? source.storageLocation : null);
 
+  console.log(`[SOURCE UI] [SourceCard] Rendering card DOM -> id: ${source.id}, title: ${source.title}, status: ${source.ingestionStatus}`);
+
   return (
     <>
       <Card
